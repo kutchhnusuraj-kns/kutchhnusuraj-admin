@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kutchhnusuraj Admin</title>
+<style>
+:root{--ink:#14110f;--gold:#c8941a;--bg:#f2f1ee;--line:#d9d6cf;--red:#b3261e;--ok:#1d7a46}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--ink);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+header b{font-size:18px;letter-spacing:.5px;color:var(--gold)}
+button{font:inherit;border:0;border-radius:8px;padding:10px 16px;background:var(--ink);color:#fff;cursor:pointer}
+button.gold{background:var(--gold);color:var(--ink);font-weight:600}
+button.ghost{background:transparent;color:inherit;border:1px solid var(--line)}
+button.del{background:var(--red)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+main{max-width:720px;margin:0 auto;padding:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+label{display:block;font-weight:600;margin:12px 0 4px}
+input,select,textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+textarea{min-height:110px}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{flex:1;background:#fff;color:var(--ink);border:1px solid var(--line)}
+.tabs button.on{background:var(--ink);color:var(--gold)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.item{display:flex;gap:10px;align-items:flex-start}
+.item img{width:72px;height:56px;object-fit:cover;border-radius:6px;background:var(--line)}
+.item h3{margin:0;font-size:16px}
+.meta{font-size:13px;color:#666}
+.msg{padding:10px;border-radius:8px;margin-bottom:12px;display:none}
+.msg.err{display:block;background:#fbe9e7;color:var(--red)}
+.msg.ok{display:block;background:#e4f4ea;color:var(--ok)}
+.hide{display:none}
+.login{max-width:380px;margin:12vh auto;padding:0 16px}
+.login img{display:block;width:140px;margin:0 auto 12px}
+</style>
+</head>
+<body>
+
+<div id="loginView" class="login">
+  <div class="card">
+    <h2 style="margin-top:0;text-align:center">Kutchhnusuraj Admin</h2>
+    <div id="loginMsg" class="msg"></div>
+    <label for="em">Email</label>
+    <input id="em" type="email" autocomplete="username">
+    <label for="pw">Password</label>
+    <input id="pw" type="password" autocomplete="current-password">
+    <div class="row"><button class="gold" style="width:100%" onclick="login()">Login</button></div>
+  </div>
+</div>
+
+<div id="appView" class="hide">
+  <header><b>KUTCHHNUSURAJ</b><button class="ghost" onclick="logout()">Logout</button></header>
+  <main>
+    <div class="tabs">
+      <button id="t1" class="on" onclick="tab(1)">News</button>
+      <button id="t2" onclick="tab(2)">Sub categories</button>
+    </div>
+    <div id="msg" class="msg"></div>
+
+    <section id="p1">
+      <div class="card" id="formCard">
+        <h3 id="formTitle" style="margin-top:0">Add news</h3>
+        <label for="title">Title</label>
+        <input id="title">
+        <label for="cat">Category</label>
+        <select id="cat" onchange="fillSubs()"></select>
+        <label for="sub">Sub category (optional)</label>
+        <select id="sub"></select>
+        <label for="desc">News text</label>
+        <textarea id="desc"></textarea>
+        <label for="img">Image link (optional)</label>
+        <input id="img" type="url" placeholder="https://...">
+        <label for="vid">YouTube or Instagram video link (optional)</label>
+        <input id="vid" type="url" placeholder="https://youtube.com/... or https://instagram.com/reel/...">
+        <div class="row">
+          <button class="gold" onclick="savePost()">Save news</button>
+          <button class="ghost" id="cancelBtn" onclick="resetForm()" style="display:none">Cancel edit</button>
+        </div>
+      </div>
+      <div id="list"></div>
+    </section>
+
+    <section id="p2" class="hide">
+      <div class="card">
+        <h3 style="margin-top:0">Add sub category</h3>
+        <label for="sc">Category</label>
+        <select id="scCat"></select>
+        <label for="scName">Sub category name</label>
+        <input id="scName" placeholder="e.g. Bhuj">
+        <div class="row"><button class="gold" onclick="addSub()">Add sub category</button></div>
+      </div>
+      <div id="subList"></div>
+    </section>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyDcAhd8dC5vV4ubXM_qWhHEu2bdvR5ROb4",
+  authDomain: "kutchhnusuraj-97c95.firebaseapp.com",
+  projectId: "kutchhnusuraj-97c95",
+  storageBucket: "kutchhnusuraj-97c95.firebasestorage.app",
+  messagingSenderId: "891753043146",
+  appId: "1:891753043146:web:d10d8f3f8053e2d69fd033"
+};
+firebase.initializeApp(firebaseConfig);
+window.addEventListener("error",e=>{var m=document.getElementById("loginMsg");m.className="msg err";m.textContent="Error: "+e.message+" - file https link thi kholo.";});
+const auth = firebase.auth(), db = firebase.firestore();
+const $ = id => document.getElementById(id);
+let cats = [], subs = [], posts = [], editId = null;
+
+function show(el, m, ok){ el.className = 'msg ' + (ok ? 'ok' : 'err'); el.textContent = m; }
+function note(m, ok=true){ show($('msg'), m, ok); setTimeout(()=>$('msg').className='msg', 3500); }
+function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+auth.onAuthStateChanged(u => {
+  $('loginView').classList.toggle('hide', !!u);
+  $('appView').classList.toggle('hide', !u);
+  if (u) load();
+});
+function login(){
+  auth.signInWithEmailAndPassword($('em').value.trim(), $('pw').value)
+    .catch(() => show($('loginMsg'), 'Email ya password galat che. Fari try karo.', false));
+}
+function logout(){ auth.signOut(); }
+function tab(n){
+  $('p1').classList.toggle('hide', n!==1); $('p2').classList.toggle('hide', n!==2);
+  $('t1').classList.toggle('on', n===1); $('t2').classList.toggle('on', n===2);
+}
+
+async function load(){
+  try{
+    cats = (await db.collection('categories').orderBy('order').get()).docs.map(d=>({id:d.id,...d.data()}));
+    subs = (await db.collection('subcategories').get()).docs.map(d=>({id:d.id,...d.data()}));
+    posts = (await db.collection('posts').orderBy('createdAt','desc').get()).docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){ note('Data load na thayo: ' + e.message, false); return; }
+  const opts = cats.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  const keep = $('cat').value; $('cat').innerHTML = opts; if (keep) $('cat').value = keep;
+  $('scCat').innerHTML = opts;
+  fillSubs(); renderPosts(); renderSubs();
+}
+function fillSubs(sel){
+  const list = subs.filter(s=>s.categoryId===$('cat').value);
+  $('sub').innerHTML = '<option value="">- None -</option>' + list.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  if (sel) $('sub').value = sel;
+}
+function vidType(u){
+  if (/youtu\.?be/.test(u)) return 'youtube';
+  if (/instagram\.com/.test(u)) return 'instagram';
+  return u ? 'other' : '';
+}
+async function savePost(){
+  const title = $('title').value.trim();
+  if (!title) return note('Title lakho.', false);
+  const data = {
+    title, description: $('desc').value.trim(), imageUrl: $('img').value.trim(),
+    videoUrl: $('vid').value.trim(), videoType: vidType($('vid').value.trim()),
+    categoryId: $('cat').value, subCategoryId: $('sub').value
+  };
+  try{
+    if (editId) await db.collection('posts').doc(editId).update(data);
+    else await db.collection('posts').add({...data, createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+    note('News save thai gayi.'); resetForm(); load();
+  }catch(e){ note('Save na thayu: ' + e.message, false); }
+}
+function resetForm(){
+  editId = null; ['title','desc','img','vid'].forEach(i=>$(i).value='');
+  $('formTitle').textContent = 'Add news'; $('cancelBtn').style.display='none'; fillSubs();
+}
+function editPost(id){
+  const p = posts.find(x=>x.id===id); editId = id;
+  $('title').value=p.title; $('desc').value=p.description||''; $('img').value=p.imageUrl||''; $('vid').value=p.videoUrl||'';
+  $('cat').value=p.categoryId; fillSubs(p.subCategoryId);
+  $('formTitle').textContent='Edit news'; $('cancelBtn').style.display='';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+async function delPost(id){
+  if (!confirm('Aa news delete karvi che?')) return;
+  await db.collection('posts').doc(id).delete(); note('News delete thai.'); load();
+}
+function renderPosts(){
+  $('list').innerHTML = posts.length ? posts.map(p=>{
+    const c = cats.find(x=>x.id===p.categoryId), s = subs.find(x=>x.id===p.subCategoryId);
+    return `<div class="card item">
+      ${p.imageUrl?`<img src="${esc(p.imageUrl)}" alt="">`:'<img alt="">'}
+      <div style="flex:1"><h3>${esc(p.title)}</h3>
+      <div class="meta">${esc(c?c.name:'')}${s?' / '+esc(s.name):''}${p.videoType?' / '+p.videoType+' video':''}</div>
+      <div class="row"><button onclick="editPost('${p.id}')">Edit</button><button class="del" onclick="delPost('${p.id}')">Delete</button></div></div></div>`;
+  }).join('') : '<div class="card">Haji koi news nathi. Upar thi pehli news add karo.</div>';
+}
+async function addSub(){
+  const name = $('scName').value.trim();
+  if (!name) return note('Sub category nu naam lakho.', false);
+  await db.collection('subcategories').add({name, categoryId:$('scCat').value});
+  $('scName').value=''; note('Sub category add thai.'); load();
+}
+async function delSub(id){
+  if (!confirm('Aa sub category delete karvi che?')) return;
+  await db.collection('subcategories').doc(id).delete(); note('Sub category delete thai.'); load();
+}
+function renderSubs(){
+  $('subList').innerHTML = subs.length ? subs.map(s=>{
+    const c = cats.find(x=>x.id===s.categoryId);
+    return `<div class="card item"><div style="flex:1"><h3>${esc(s.name)}</h3><div class="meta">${esc(c?c.name:'')}</div></div>
+      <button class="del" onclick="delSub('${s.id}')">Delete</button></div>`;
+  }).join('') : '<div class="card">Haji koi sub category nathi.</div>';
+}
+</script>
+</body>
+</html>
