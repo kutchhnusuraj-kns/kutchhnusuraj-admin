@@ -68,10 +68,11 @@ textarea{min-height:110px}
         <select id="cat" onchange="fillSubs()"></select>
         <label for="sub">Sub category (optional)</label>
         <select id="sub"></select>
-        <label for="desc">News text</label>
+        <label for="desc">News text (paragraph vachche khali line rakho)</label>
         <textarea id="desc"></textarea>
-        <label for="img">Image link (optional)</label>
-        <input id="img" type="url" placeholder="https://...">
+        <label for="img">Image links (ek line ma ek link, ghani image chale)</label>
+        <textarea id="img" style="min-height:80px" placeholder="https://.../1.jpg&#10;https://.../2.jpg"></textarea>
+        <div class="meta">Pehli image mukhya photo che. Biji image text ma kyay mukvi hoy to text ma alag line ma [img2] lakho. Na lakho to image paragraph vachche automatic aavshe.</div>
         <label for="vid">YouTube or Instagram video link (optional)</label>
         <input id="vid" type="url" placeholder="https://youtube.com/... or https://instagram.com/reel/...">
         <div class="row">
@@ -154,11 +155,12 @@ function vidType(u){
   if (/instagram\.com/.test(u)) return 'instagram';
   return u ? 'other' : '';
 }
+const imgList = () => $('img').value.split('\n').map(s=>s.trim()).filter(Boolean);
 async function savePost(){
   const title = $('title').value.trim();
   if (!title) return note('Title lakho.', false);
   const data = {
-    title, description: $('desc').value.trim(), imageUrl: $('img').value.trim(),
+    title, description: $('desc').value.trim(), imageUrl: imgList()[0] || '', images: imgList().join('\n'),
     videoUrl: $('vid').value.trim(), videoType: vidType($('vid').value.trim()),
     categoryId: $('cat').value, subCategoryId: $('sub').value
   };
@@ -174,7 +176,7 @@ function resetForm(){
 }
 function editPost(id){
   const p = posts.find(x=>x.id===id); editId = id;
-  $('title').value=p.title; $('desc').value=p.description||''; $('img').value=p.imageUrl||''; $('vid').value=p.videoUrl||'';
+  $('title').value=p.title; $('desc').value=p.description||''; $('img').value=p.images||p.imageUrl||''; $('vid').value=p.videoUrl||'';
   $('cat').value=p.categoryId; fillSubs(p.subCategoryId);
   $('formTitle').textContent='Edit news'; $('cancelBtn').style.display='';
   window.scrollTo({top:0,behavior:'smooth'});
