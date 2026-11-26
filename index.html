@@ -86,10 +86,10 @@ textarea{min-height:110px}
 
     <section id="p3" class="hide">
       <div class="card">
-        <h3 style="margin-top:0">Add Short (YouTube / Instagram reel)</h3>
+        <h3 style="margin-top:0">Add Short (YouTube / Instagram / .mp4 video)</h3>
         <label for="shTitle">Title</label>
         <input id="shTitle">
-        <label for="shUrl">YouTube ke Instagram reel link</label>
+        <label for="shUrl">YouTube, Instagram reel ke .mp4 video link</label>
         <input id="shUrl" type="url" placeholder="https://www.youtube.com/shorts/... ke https://www.instagram.com/reel/...">
         <label for="shCat">Category (optional)</label>
         <select id="shCat"></select>
@@ -181,6 +181,7 @@ function fillSubs(sel){
 function vidType(u){
   if (/youtu\.?be/.test(u)) return 'youtube';
   if (/instagram\.com/.test(u)) return 'instagram';
+  if (/\.(mp4|webm|mov)(\?|$)/i.test(u) || /\/video\/upload\//.test(u)) return 'video';
   return u ? 'other' : '';
 }
 const imgList = () => $('img').value.split('\n').map(s=>s.trim()).filter(Boolean);
@@ -227,7 +228,7 @@ async function addShort(){
   const title = $('shTitle').value.trim(), url = $('shUrl').value.trim();
   if (!title) return note('Title lakho.', false);
   const t = vidType(url);
-  if (t !== 'youtube' && t !== 'instagram') return note('YouTube ke Instagram ni link nakho.', false);
+  if (t !== 'youtube' && t !== 'instagram' && t !== 'video') return note('YouTube, Instagram ke video (.mp4) ni link nakho.', false);
   try{
     await db.collection('shorts').add({title, url, type:t, categoryId:$('shCat').value, status:'approved',
       createdAt: firebase.firestore.FieldValue.serverTimestamp()});
@@ -242,7 +243,7 @@ function renderShorts(){
   $('shList').innerHTML = shorts.length ? shorts.map(s=>{
     const c = cats.find(x=>x.id===s.categoryId);
     return `<div class="card item"><div style="flex:1"><h3>${esc(s.title)}</h3>
-      <div class="meta">${esc(s.type||'')}${c?' / '+esc(c.name):''}</div>
+      <div class="meta">${esc(s.type||'')}${c?' / '+esc(c.name):''} / likes: ${s.likes||0}</div>
       <div class="meta" style="word-break:break-all">${esc(s.url)}</div></div>
       <button class="del" onclick="delShort('${s.id}')">Delete</button></div>`;
   }).join('') : '<div class="card">Haji koi short nathi. Upar thi pehlu add karo.</div>';
