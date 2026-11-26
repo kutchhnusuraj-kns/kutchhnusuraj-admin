@@ -56,6 +56,7 @@ textarea{min-height:110px}
     <div class="tabs">
       <button id="t1" class="on" onclick="tab(1)">News</button>
       <button id="t2" onclick="tab(2)">Sub categories</button>
+      <button id="t3" onclick="tab(3)">Shorts</button>
     </div>
     <div id="msg" class="msg"></div>
 
@@ -81,6 +82,20 @@ textarea{min-height:110px}
         </div>
       </div>
       <div id="list"></div>
+    </section>
+
+    <section id="p3" class="hide">
+      <div class="card">
+        <h3 style="margin-top:0">Add Short (YouTube / Instagram reel)</h3>
+        <label for="shTitle">Title</label>
+        <input id="shTitle">
+        <label for="shUrl">YouTube ke Instagram reel link</label>
+        <input id="shUrl" type="url" placeholder="https://www.youtube.com/shorts/... ke https://www.instagram.com/reel/...">
+        <label for="shCat">Category (optional)</label>
+        <select id="shCat"></select>
+        <div class="row"><button class="gold" onclick="addShort()">Add short</button></div>
+      </div>
+      <div id="shList"></div>
     </section>
 
     <section id="p2" class="hide">
@@ -113,10 +128,22 @@ firebase.initializeApp(firebaseConfig);
 window.addEventListener("error",e=>{var m=document.getElementById("loginMsg");m.className="msg err";m.textContent="Error: "+e.message+" - file https link thi kholo.";});
 const auth = firebase.auth(), db = firebase.firestore();
 const $ = id => document.getElementById(id);
-let cats = [], subs = [], posts = [], editId = null;
+let cats = [], subs = [], posts = [], shorts = [], editId = null;
 
 function show(el, m, ok){ el.className = 'msg ' + (ok ? 'ok' : 'err'); el.textContent = m; }
 function note(m, ok=true){ show($('msg'), m, ok); setTimeout(()=>$('msg').className='msg', 3500); }
+function ask(msg){
+  return new Promise(res=>{
+    const d=document.createElement('div');
+    d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:99;padding:20px';
+    d.innerHTML='<div class="card" style="max-width:340px;margin:0;width:100%"><p style="margin-top:0;font-weight:600"></p><div class="row"><button class="del">Ha, delete</button><button class="ghost">Na</button></div></div>';
+    d.querySelector('p').textContent=msg;
+    const b=d.querySelectorAll('button');
+    b[0].onclick=()=>{d.remove();res(true)};
+    b[1].onclick=()=>{d.remove();res(false)};
+    document.body.appendChild(d);
+  });
+}
 function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 auth.onAuthStateChanged(u => {
@@ -130,8 +157,7 @@ function login(){
 }
 function logout(){ auth.signOut(); }
 function tab(n){
-  $('p1').classList.toggle('hide', n!==1); $('p2').classList.toggle('hide', n!==2);
-  $('t1').classList.toggle('on', n===1); $('t2').classList.toggle('on', n===2);
+  [1,2,3].forEach(k=>{ $('p'+k).classList.toggle('hide', n!==k); $('t'+k).classList.toggle('on', n===k); });
 }
 
 async function load(){
@@ -139,11 +165,13 @@ async function load(){
     cats = (await db.collection('categories').orderBy('order').get()).docs.map(d=>({id:d.id,...d.data()}));
     subs = (await db.collection('subcategories').get()).docs.map(d=>({id:d.id,...d.data()}));
     posts = (await db.collection('posts').orderBy('createdAt','desc').get()).docs.map(d=>({id:d.id,...d.data()}));
+    shorts = (await db.collection('shorts').orderBy('createdAt','desc').get()).docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){ note('Data load na thayo: ' + e.message, false); return; }
   const opts = cats.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
   const keep = $('cat').value; $('cat').innerHTML = opts; if (keep) $('cat').value = keep;
   $('scCat').innerHTML = opts;
-  fillSubs(); renderPosts(); renderSubs();
+  $('shCat').innerHTML = '<option value="">- None -</option>' + opts;
+  fillSubs(); renderPosts(); renderSubs(); renderShorts();
 }
 function fillSubs(sel){
   const list = subs.filter(s=>s.categoryId===$('cat').value);
@@ -162,7 +190,7 @@ async function savePost(){
   const data = {
     title, description: $('desc').value.trim(), imageUrl: imgList()[0] || '', images: imgList().join('\n'),
     videoUrl: $('vid').value.trim(), videoType: vidType($('vid').value.trim()),
-    categoryId: $('cat').value, subCategoryId: $('sub').value
+    categoryId: $('cat').value, subCategoryId: $('sub').value, status: 'approved'
   };
   try{
     if (editId) await db.collection('posts').doc(editId).update(data);
@@ -182,7 +210,7 @@ function editPost(id){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 async function delPost(id){
-  if (!confirm('Aa news delete karvi che?')) return;
+  if (!(await ask('Aa news delete karvi che?'))) return;
   await db.collection('posts').doc(id).delete(); note('News delete thai.'); load();
 }
 function renderPosts(){
@@ -195,6 +223,30 @@ function renderPosts(){
       <div class="row"><button onclick="editPost('${p.id}')">Edit</button><button class="del" onclick="delPost('${p.id}')">Delete</button></div></div></div>`;
   }).join('') : '<div class="card">Haji koi news nathi. Upar thi pehli news add karo.</div>';
 }
+async function addShort(){
+  const title = $('shTitle').value.trim(), url = $('shUrl').value.trim();
+  if (!title) return note('Title lakho.', false);
+  const t = vidType(url);
+  if (t !== 'youtube' && t !== 'instagram') return note('YouTube ke Instagram ni link nakho.', false);
+  try{
+    await db.collection('shorts').add({title, url, type:t, categoryId:$('shCat').value, status:'approved',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+    $('shTitle').value=''; $('shUrl').value=''; note('Short add thayu.'); load();
+  }catch(e){ note('Save na thayu: ' + e.message, false); }
+}
+async function delShort(id){
+  if (!(await ask('Aa short delete karvu che?'))) return;
+  await db.collection('shorts').doc(id).delete(); note('Short delete thayu.'); load();
+}
+function renderShorts(){
+  $('shList').innerHTML = shorts.length ? shorts.map(s=>{
+    const c = cats.find(x=>x.id===s.categoryId);
+    return `<div class="card item"><div style="flex:1"><h3>${esc(s.title)}</h3>
+      <div class="meta">${esc(s.type||'')}${c?' / '+esc(c.name):''}</div>
+      <div class="meta" style="word-break:break-all">${esc(s.url)}</div></div>
+      <button class="del" onclick="delShort('${s.id}')">Delete</button></div>`;
+  }).join('') : '<div class="card">Haji koi short nathi. Upar thi pehlu add karo.</div>';
+}
 async function addSub(){
   const name = $('scName').value.trim();
   if (!name) return note('Sub category nu naam lakho.', false);
@@ -202,7 +254,7 @@ async function addSub(){
   $('scName').value=''; note('Sub category add thai.'); load();
 }
 async function delSub(id){
-  if (!confirm('Aa sub category delete karvi che?')) return;
+  if (!(await ask('Aa sub category delete karvi che?'))) return;
   await db.collection('subcategories').doc(id).delete(); note('Sub category delete thai.'); load();
 }
 function renderSubs(){
